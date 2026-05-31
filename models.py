@@ -24,6 +24,9 @@ class ActionType(str, Enum):
     MOVE = "move"
     TALK = "talk"
     CHAT = "chat"
+    CREATE_WORLD = "create_world"
+    EDIT_SKELETON = "edit_skeleton"
+    APPROVE_SKELETON = "approve_skeleton"
 
 # ──────────────────────────────────────────────
 # Персонаж игрока
