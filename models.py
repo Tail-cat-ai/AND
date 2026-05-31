@@ -15,19 +15,6 @@ class RoomState(str, Enum):
     COMBAT = "combat"
     DIALOGUE = "dialogue"
 
-class ActionType(str, Enum):
-    ROLL = "roll"
-    CHECK = "check"
-    ATTACK = "attack"
-    CAST = "cast"
-    USE_ITEM = "use_item"
-    MOVE = "move"
-    TALK = "talk"
-    CHAT = "chat"
-    CREATE_WORLD = "create_world"
-    EDIT_SKELETON = "edit_skeleton"
-    APPROVE_SKELETON = "approve_skeleton"
-
 # ──────────────────────────────────────────────
 # Персонаж игрока
 # ──────────────────────────────────────────────
@@ -130,7 +117,7 @@ class FactJSON(BaseModel):
 # Сообщения
 # ──────────────────────────────────────────────
 class PlayerMessage(BaseModel):
-    action: ActionType = ActionType.CHAT
+    action: str = "chat"  # теперь свободная строка, не перечисление
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 class ServerMessage(BaseModel):
