@@ -1,40 +1,33 @@
 """
-Генератор игрового мира с улучшенным парсингом JSON.
+Генератор игрового мира (русский язык, фактологический стиль).
 """
 import json
 from models import WorldSkeleton, WorldState
 from llm_dispatcher import call_api
 
-
 def _extract_json(text: str) -> str:
-    """Пытается извлечь JSON-подстроку из текста, если модель добавила обрамление."""
     text = text.strip()
-    # Ищем первый '{' и последний '}'
     start = text.find('{')
     end = text.rfind('}')
     if start != -1 and end != -1 and end > start:
         return text[start:end+1]
-    return text  # возвращаем как есть, если скобок не нашли
-
+    return text
 
 async def generate_skeleton(concept: str, mood: str = "мрачное фэнтези") -> WorldSkeleton:
-    prompt = f"""Ты — генератор миров для НРИ. Создай скелет мира **строго** в формате JSON.
-Не добавляй никакого текста до или после JSON. Ответ должен начинаться с '{{' и заканчиваться '}}'.
-
-{{
-  "name": "Название",
-  "setting": "Сеттинг",
-  "feature": "Уникальная особенность",
-  "conflict": "Центральный конфликт",
-  "tone": "Тон"
-}}
+    prompt = f"""Создай СКЕЛЕТ мира для настольной ролевой игры. Отвечай **строго** JSON-объектом без лишних слов.
+Язык: русский.
+Поля:
+- name: название мира (1-3 слова)
+- setting: тип сеттинга (например, тёмное фэнтези, стимпанк, постапокалипсис)
+- feature: главная уникальная особенность мира (одно предложение)
+- conflict: центральный конфликт (одно предложение)
+- tone: общий тон повествования (одно-два слова)
 
 Концепция: {concept}
 Настроение: {mood}"""
 
     messages = [{"role": "user", "content": prompt}]
     result = await call_api(messages, "gryphe/mythomax-l2-13b", max_tokens=512)
-
     if result:
         json_str = _extract_json(result)
         try:
@@ -46,57 +39,46 @@ async def generate_skeleton(concept: str, mood: str = "мрачное фэнте
                 setting=str(e),
                 feature=result[:300]
             )
-    return WorldSkeleton(
-        name="LLM не ответила",
-        setting="",
-        feature=""
-    )
-
+    return WorldSkeleton(name="LLM не ответила")
 
 async def generate_full_world(skeleton: WorldSkeleton) -> WorldState:
-    prompt = f"""Создай полное описание мира на основе скелета. Ответь **строго** в JSON, без текста вне скобок.
-{{
-  "description": "2-3 абзаца",
-  "main_quest": "Главный квест",
-  "starting_location": "Стартовая локация",
-  "hooks": ["Крючок 1", "Крючок 2", "Крючок 3"],
-  "atmosphere": ["Деталь 1", "Деталь 2"]
-}}
+    prompt = f"""На основе скелета мира создай полное описание для ведущего. Отвечай **строго** JSON-объектом без лишнего текста.
+Язык: русский.
+Стиль: предельно фактологический, без художественных описаний, только суть.
+Поля:
+- description: краткое описание мира (2-4 предложения, только факты: география, климат, общая ситуация)
+- main_quest: главный квест, который может быть предложен партии (1-2 предложения)
+- starting_location: стартовая локация (название и 1-2 факта о ней)
+- hooks: список из 2-3 стартовых сюжетных крючков (конкретные события или ситуации, с которыми сталкиваются игроки)
+- atmosphere: список из 3-5 ключевых деталей окружения (запахи, звуки, визуальные особенности)
+- factions: список из 1-2 ключевых фракций (название, краткая цель)
+- locations: список из 2-3 ключевых локаций (название, что там находится)
 
-Скелет:
-{skeleton.model_dump_json(indent=2)}"""
+Скелет мира:
+{skeleton.model_dump_json(indent=2, ensure_ascii=False)}"""
 
     messages = [{"role": "user", "content": prompt}]
-    result = await call_api(messages, "gryphe/mythomax-l2-13b", max_tokens=1200)
-
+    result = await call_api(messages, "gryphe/mythomax-l2-13b", max_tokens=1500)
     if result:
         json_str = _extract_json(result)
         try:
             data = json.loads(json_str)
             return WorldState(
                 skeleton=skeleton,
-                description=data["description"],
-                main_quest=data["main_quest"],
-                starting_location=data["starting_location"],
-                hooks=data["hooks"],
-                atmosphere=data["atmosphere"]
+                description=data.get("description", ""),
+                main_quest=data.get("main_quest", ""),
+                starting_location=data.get("starting_location", ""),
+                hooks=data.get("hooks", []),
+                atmosphere=data.get("atmosphere", []),
+                factions=data.get("factions", []),
+                locations=data.get("locations", [])
             )
         except Exception as e:
-            # Возвращаем сырой ответ для диагностики
             return WorldState(
                 skeleton=skeleton,
-                description=f"Ошибка JSON: {e}\n\nОтвет модели:\n{result}",
-                main_quest="",
-                starting_location="",
-                hooks=[],
-                atmosphere=[]
+                description=f"Ошибка JSON: {e}\n\nОтвет модели:\n{result[:500]}"
             )
-    else:
-        return WorldState(
-            skeleton=skeleton,
-            description="call_api вернул None. Проверьте логи сервера.",
-            main_quest="",
-            starting_location="",
-            hooks=[],
-            atmosphere=[]
-        )
+    return WorldState(
+        skeleton=skeleton,
+        description="LLM не ответила."
+    )

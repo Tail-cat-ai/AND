@@ -209,12 +209,15 @@ async def game_websocket(websocket: WebSocket, room_id: str):
                     full_world = await generate_full_world(room.world_skeleton)
                     room.world_state = full_world
                     room.world_skeleton = None
+                    # Сохраняем мир
+                    from state_manager import save_world  # импорт можно вынести в начало файла
+                    save_world(room_id, full_world)
                     await session_manager.broadcast(
                         room_id,
                         ServerMessage(
                             type="system",
                             author="dm",
-                            content=f"Мир создан!\n{full_world.model_dump_json(indent=2)}"
+                            content=f"Мир создан и сохранён!\n{full_world.model_dump_json(indent=2, ensure_ascii=False)}"
                         ),
                         active_connections,
                     )

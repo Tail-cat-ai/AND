@@ -53,6 +53,8 @@ class WorldState(BaseModel):
     starting_location: str = ""
     hooks: List[str] = Field(default_factory=list)
     atmosphere: List[str] = Field(default_factory=list)
+    factions: List[str] = Field(default_factory=list)      # новое поле
+    locations: List[str] = Field(default_factory=list)     # новое поле
 
 class Room(BaseModel):
     id: str
