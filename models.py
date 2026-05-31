@@ -23,7 +23,7 @@ class ActionType(str, Enum):
     USE_ITEM = "use_item"
     MOVE = "move"
     TALK = "talk"
-    CHAT = "chat"  # обычное сообщение в чат
+    CHAT = "chat"
 
 # ──────────────────────────────────────────────
 # Персонаж игрока
@@ -35,24 +35,23 @@ class Character(BaseModel):
     level: int = 1
     hp: int = 10
     max_hp: int = 10
-    ac: int = 10  # Armor Class
+    ac: int = 10
     strength: int = 10
     dexterity: int = 10
     constitution: int = 10
     intelligence: int = 10
     wisdom: int = 10
     charisma: int = 10
-    skills: Dict[str, int] = Field(default_factory=dict)  # навык -> бонус
+    skills: Dict[str, int] = Field(default_factory=dict)
     inventory: List[str] = Field(default_factory=list)
-    spell_slots: Dict[int, int] = Field(default_factory=dict)  # уровень -> количество
+    spell_slots: Dict[int, int] = Field(default_factory=dict)
 
     def get_modifier(self, stat: str) -> int:
-        """Возвращает модификатор характеристики по D&D 5e."""
         value = getattr(self, stat, 10)
         return (value - 10) // 2
 
 # ──────────────────────────────────────────────
-# Игрок (обёртка над WebSocket + персонаж)
+# Игрок
 # ──────────────────────────────────────────────
 class Player(BaseModel):
     nickname: str
@@ -60,14 +59,34 @@ class Player(BaseModel):
     is_ready: bool = False
 
 # ──────────────────────────────────────────────
+# Мир: скелет и полное описание
+# ──────────────────────────────────────────────
+class WorldSkeleton(BaseModel):
+    name: str = "Новый мир"
+    setting: str = "фэнтези"
+    feature: str = ""
+    conflict: str = ""
+    tone: str = "мрачное"
+
+class WorldState(BaseModel):
+    skeleton: WorldSkeleton
+    description: str = ""
+    main_quest: str = ""
+    starting_location: str = ""
+    hooks: List[str] = Field(default_factory=list)
+    atmosphere: List[str] = Field(default_factory=list)
+
+# ──────────────────────────────────────────────
 # Игровая комната
 # ──────────────────────────────────────────────
 class Room(BaseModel):
     id: str
     state: RoomState = RoomState.LOBBY
-    players: Dict[str, Player] = Field(default_factory=dict)  # nickname -> Player
-    turn_order: List[str] = Field(default_factory=list)  # очерёдность в бою
+    players: Dict[str, Player] = Field(default_factory=dict)
+    turn_order: List[str] = Field(default_factory=list)
     active_player_index: int = 0
+    world_skeleton: Optional[WorldSkeleton] = None
+    world_state: Optional[WorldState] = None
 
 # ──────────────────────────────────────────────
 # Результат броска
@@ -89,12 +108,12 @@ class NPC(BaseModel):
     role: str = ""
     goal: str = ""
     fear: str = ""
-    limit: str = ""  # предел, за который NPC не пойдёт
-    attitude: int = 0  # -10 враждебный, 0 нейтральный, +10 дружелюбный
+    limit: str = ""
+    attitude: int = 0
     location: str = ""
 
 # ──────────────────────────────────────────────
-# Сухие факты для LLM (схема Event Composer)
+# Сухие факты для LLM
 # ──────────────────────────────────────────────
 class FactJSON(BaseModel):
     scene_type: str = "exploration"
@@ -105,17 +124,14 @@ class FactJSON(BaseModel):
     required_style: str = "мрачное фэнтези, сухой реализм, никакой лишней драматизации"
 
 # ──────────────────────────────────────────────
-# Входящее сообщение от игрока
+# Сообщения
 # ──────────────────────────────────────────────
 class PlayerMessage(BaseModel):
     action: ActionType = ActionType.CHAT
     payload: Dict[str, Any] = Field(default_factory=dict)
 
-# ──────────────────────────────────────────────
-# Ответ сервера всем игрокам
-# ──────────────────────────────────────────────
 class ServerMessage(BaseModel):
-    type: str  # "narrative", "roll_result", "system", "chat"
+    type: str
     author: str = "dm"
     content: str = ""
     data: Optional[Dict[str, Any]] = None
