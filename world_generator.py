@@ -42,27 +42,30 @@ async def generate_skeleton(concept: str, mood: str = "мрачное фэнте
     return WorldSkeleton(name="LLM не ответила")
 
 async def generate_full_world(skeleton: WorldSkeleton) -> WorldState:
-    prompt = f"""На основе скелета мира создай полное описание для ведущего. Отвечай **строго** JSON-объектом без лишнего текста.
+    prompt = f"""Создай полное описание мира для ведущего. Отвечай **строго** JSON-объектом без лишнего текста.
 Язык: русский.
 Стиль: предельно фактологический, без художественных описаний, только суть.
 Поля:
-- description: краткое описание мира (2-4 предложения, только факты: география, климат, общая ситуация)
-- main_quest: главный квест, который может быть предложен партии (1-2 предложения)
+- description: краткое описание мира (2-4 предложения, только факты)
+- main_quest: главный квест (1-2 предложения)
 - starting_location: стартовая локация (название и 1-2 факта о ней)
-- hooks: список из 2-3 стартовых сюжетных крючков (конкретные события или ситуации, с которыми сталкиваются игроки)
+- hooks: список из 2-3 стартовых сюжетных крючков (конкретные события, с которыми сталкиваются игроки)
 - atmosphere: список из 3-5 ключевых деталей окружения (запахи, звуки, визуальные особенности)
-- factions: список из 1-2 ключевых фракций (название, краткая цель)
-- locations: список из 2-3 ключевых локаций (название, что там находится)
+- factions: список из 1-2 фракций, каждая — объект {{"name": "...", "description": "..."}}
+- locations: список из 2-3 ключевых локаций, каждая — объект {{"name": "...", "description": "..."}}
 
 Скелет мира:
 {skeleton.model_dump_json(indent=2, ensure_ascii=False)}"""
 
     messages = [{"role": "user", "content": prompt}]
-    result = await call_api(messages, "gryphe/mythomax-l2-13b", max_tokens=1500)
+    result = await call_api(messages, "gryphe/mythomax-l2-13b", max_tokens=2000)
     if result:
         json_str = _extract_json(result)
         try:
             data = json.loads(json_str)
+            # Парсим factions и locations как списки объектов
+            factions = [Faction(**f) for f in data.get("factions", [])]
+            locations = [Location(**l) for l in data.get("locations", [])]
             return WorldState(
                 skeleton=skeleton,
                 description=data.get("description", ""),
@@ -70,8 +73,8 @@ async def generate_full_world(skeleton: WorldSkeleton) -> WorldState:
                 starting_location=data.get("starting_location", ""),
                 hooks=data.get("hooks", []),
                 atmosphere=data.get("atmosphere", []),
-                factions=data.get("factions", []),
-                locations=data.get("locations", [])
+                factions=factions,
+                locations=locations
             )
         except Exception as e:
             return WorldState(

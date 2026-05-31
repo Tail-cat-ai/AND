@@ -46,6 +46,16 @@ class WorldSkeleton(BaseModel):
     conflict: str = ""
     tone: str = "мрачное"
 
+# ... весь старый код models.py, добавляем новые модели:
+
+class Faction(BaseModel):
+    name: str = ""
+    description: str = ""
+
+class Location(BaseModel):
+    name: str = ""
+    description: str = ""
+
 class WorldState(BaseModel):
     skeleton: WorldSkeleton
     description: str = ""
@@ -53,8 +63,8 @@ class WorldState(BaseModel):
     starting_location: str = ""
     hooks: List[str] = Field(default_factory=list)
     atmosphere: List[str] = Field(default_factory=list)
-    factions: List[str] = Field(default_factory=list)      # новое поле
-    locations: List[str] = Field(default_factory=list)     # новое поле
+    factions: List[Faction] = Field(default_factory=list)      # теперь список объектов
+    locations: List[Location] = Field(default_factory=list)    # теперь список объектов
 
 class Room(BaseModel):
     id: str
