@@ -1,23 +1,17 @@
 """
 Pydantic-модели для D&D AI DM.
-Все внутренние модули обмениваются только этими структурами.
+Совместимость с Pydantic v2.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from enum import Enum
 
-# ──────────────────────────────────────────────
-# Базовые перечисления
-# ──────────────────────────────────────────────
 class RoomState(str, Enum):
     LOBBY = "lobby"
     EXPLORATION = "exploration"
     COMBAT = "combat"
     DIALOGUE = "dialogue"
 
-# ──────────────────────────────────────────────
-# Персонаж игрока
-# ──────────────────────────────────────────────
 class Character(BaseModel):
     name: str
     race: str = "human"
@@ -40,17 +34,11 @@ class Character(BaseModel):
         value = getattr(self, stat, 10)
         return (value - 10) // 2
 
-# ──────────────────────────────────────────────
-# Игрок
-# ──────────────────────────────────────────────
 class Player(BaseModel):
     nickname: str
     character: Optional[Character] = None
     is_ready: bool = False
 
-# ──────────────────────────────────────────────
-# Мир: скелет и полное описание
-# ──────────────────────────────────────────────
 class WorldSkeleton(BaseModel):
     name: str = "Новый мир"
     setting: str = "фэнтези"
@@ -66,9 +54,6 @@ class WorldState(BaseModel):
     hooks: List[str] = Field(default_factory=list)
     atmosphere: List[str] = Field(default_factory=list)
 
-# ──────────────────────────────────────────────
-# Игровая комната
-# ──────────────────────────────────────────────
 class Room(BaseModel):
     id: str
     state: RoomState = RoomState.LOBBY
@@ -78,9 +63,6 @@ class Room(BaseModel):
     world_skeleton: Optional[WorldSkeleton] = None
     world_state: Optional[WorldState] = None
 
-# ──────────────────────────────────────────────
-# Результат броска
-# ──────────────────────────────────────────────
 class RollResult(BaseModel):
     dice: str = "d20"
     rolls: List[int] = Field(default_factory=list)
@@ -89,9 +71,6 @@ class RollResult(BaseModel):
     critical_success: bool = False
     critical_failure: bool = False
 
-# ──────────────────────────────────────────────
-# NPC
-# ──────────────────────────────────────────────
 class NPC(BaseModel):
     id: str
     name: str
@@ -102,9 +81,6 @@ class NPC(BaseModel):
     attitude: int = 0
     location: str = ""
 
-# ──────────────────────────────────────────────
-# Сухие факты для LLM
-# ──────────────────────────────────────────────
 class FactJSON(BaseModel):
     scene_type: str = "exploration"
     location: str = ""
@@ -113,11 +89,8 @@ class FactJSON(BaseModel):
     atmosphere: List[str] = Field(default_factory=list)
     required_style: str = "мрачное фэнтези, сухой реализм, никакой лишней драматизации"
 
-# ──────────────────────────────────────────────
-# Сообщения
-# ──────────────────────────────────────────────
 class PlayerMessage(BaseModel):
-    action: str = "chat"  # теперь свободная строка, не перечисление
+    action: str = "chat"
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 class ServerMessage(BaseModel):
@@ -125,3 +98,7 @@ class ServerMessage(BaseModel):
     author: str = "dm"
     content: str = ""
     data: Optional[Dict[str, Any]] = None
+
+    def model_dump_json(self, **kwargs):
+        # для обратной совместимости, но не обязательно
+        return super().model_dump_json(**kwargs)

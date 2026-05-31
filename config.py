@@ -23,16 +23,16 @@ DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./game.db")
 LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
 LLM_API_URL: str = os.getenv("LLM_API_URL", "https://nano-gpt.com/api/v1/chat/completions")
 
-# Имена моделей для разных слоёв наррации
+# Имена моделей — все ставим на MythoMax, т.к. она проверена и бесплатна
 MODEL_NARRATOR_FAST: str = os.getenv("MODEL_NARRATOR_FAST", "gryphe/mythomax-l2-13b")
-MODEL_NARRATOR_DEEP: str = os.getenv("MODEL_NARRATOR_DEEP", "qwen/qwen3.5-27b-writer-derestricted")
-MODEL_NARRATOR_THINKING: str = os.getenv("MODEL_NARRATOR_THINKING", "qwen/qwen3.5-397b-a17b-thinking")
+MODEL_NARRATOR_DEEP: str = os.getenv("MODEL_NARRATOR_DEEP", "gryphe/mythomax-l2-13b")
+MODEL_NARRATOR_THINKING: str = os.getenv("MODEL_NARRATOR_THINKING", "gryphe/mythomax-l2-13b")
 
 # Fallback-модель
 MODEL_FALLBACK: str = os.getenv("MODEL_FALLBACK", "meta-llama/llama-3.1-8b-instruct")
 
 # Параметры генерации
-LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "1000"))  # увеличен с 500
+LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "1000"))
 LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
 
 # ──────────────────────────────────────────────
