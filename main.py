@@ -12,12 +12,13 @@ from models import Player, Character, ServerMessage, PlayerMessage, RoomState
 from session_manager import session_manager
 from rule_engine import roll_d20, check_skill, ability_check, attack_roll, damage_roll
 from event_composer import compose_exploration_scene, compose_combat_scene, compose_social_scene
-from llm_dispatcher import narrate, narrate_system_message
+from llm_dispatcher import narrate, narrate_system_message, call_api
+from world_generator import generate_skeleton, generate_full_world
+from models import WorldSkeleton  # на случай, если понадобится явно
 
 app = FastAPI()
 
 # Хранилище активных WebSocket-соединений: nickname -> WebSocket
-# (один глобальный словарь, для простоты — позже можно привязать к комнате)
 active_connections: dict[str, WebSocket] = {}
 
 
@@ -43,7 +44,6 @@ async def game_websocket(websocket: WebSocket, room_id: str):
         try:
             msg = PlayerMessage.parse_raw(data)
         except Exception:
-            # Если не парсится, считаем, что прислали просто никнейм
             msg = PlayerMessage(payload={"nickname": data.strip()})
 
         nickname = msg.payload.get("nickname", f"Player_{id(websocket)}")
@@ -79,11 +79,9 @@ async def game_websocket(websocket: WebSocket, room_id: str):
             try:
                 msg = PlayerMessage.parse_raw(raw)
             except Exception:
-                # Невалидный JSON — обрабатываем как простой чат
                 msg = PlayerMessage(payload={"text": raw})
 
             if msg.action == "chat":
-                # Простое сообщение в чат — рассылаем как есть
                 await session_manager.broadcast(
                     room_id,
                     ServerMessage(
@@ -119,18 +117,13 @@ async def game_websocket(websocket: WebSocket, room_id: str):
                     disadvantage = msg.payload.get("disadvantage", False)
                     result, success = check_skill(player.character, skill, dc, advantage, disadvantage)
 
-                    # Формируем фактаж и получаем нарратив
                     fact = compose_exploration_scene(
                         location=msg.payload.get("location", "неизвестно"),
                         atmosphere=msg.payload.get("atmosphere", ["мрачное подземелье"]),
                         actors=[nickname],
                         active_character=player.character,
                         recent_roll=result,
-                        extra_facts={
-                            "skill": skill,
-                            "dc": dc,
-                            "success": success,
-                        },
+                        extra_facts={"skill": skill, "dc": dc, "success": success},
                     )
                     narrative = await narrate(fact)
 
@@ -140,21 +133,14 @@ async def game_websocket(websocket: WebSocket, room_id: str):
                             type="narrative",
                             author="dm",
                             content=narrative,
-                            data={
-                                "roll": result.dict(),
-                                "success": success,
-                            },
+                            data={"roll": result.dict(), "success": success},
                         ),
                         active_connections,
                     )
                 else:
                     await session_manager.send_to_player(
                         nickname,
-                        ServerMessage(
-                            type="system",
-                            author="dm",
-                            content="Сначала создайте персонажа.",
-                        ),
+                        ServerMessage(type="system", author="dm", content="Сначала создайте персонажа."),
                         active_connections,
                     )
 
@@ -189,21 +175,76 @@ async def game_websocket(websocket: WebSocket, room_id: str):
                             type="narrative",
                             author="dm",
                             content=narrative,
-                            data={
-                                "roll": atk_result.dict(),
-                                "hit": hit,
-                                "damage": dmg,
-                            },
+                            data={"roll": atk_result.dict(), "hit": hit, "damage": dmg},
                         ),
                         active_connections,
                     )
                 else:
                     await session_manager.send_to_player(
                         nickname,
+                        ServerMessage(type="system", author="dm", content="Сначала создайте персонажа."),
+                        active_connections,
+                    )
+
+            # === Генерация мира ===
+            elif msg.action == "create_world":
+                concept = msg.payload.get("concept", "")
+                mood = msg.payload.get("mood", "мрачное фэнтези")
+                skeleton = await generate_skeleton(concept, mood)
+                room = session_manager.get_room(room_id)
+                if room:
+                    room.world_skeleton = skeleton
+                await session_manager.broadcast(
+                    room_id,
+                    ServerMessage(
+                        type="system",
+                        author="dm",
+                        content=f"Скелет мира:\n{skeleton.json(indent=2, ensure_ascii=False)}\n\n"
+                                f"Отредактируйте (edit_skeleton) или утвердите (approve_skeleton)."
+                    ),
+                    active_connections,
+                )
+
+            elif msg.action == "edit_skeleton":
+                edits = msg.payload.get("edits", "")
+                room = session_manager.get_room(room_id)
+                if room and room.world_skeleton:
+                    prompt = f"""Текущий скелет мира:
+{room.world_skeleton.json(indent=2, ensure_ascii=False)}
+
+Игрок хочет внести правки: {edits}
+
+Обнови скелет, сохранив остальные поля без изменений. Ответь строго JSON скелета."""
+                    messages = [{"role": "user", "content": prompt}]
+                    result = await call_api(messages, "qwen/qwen3.5-27b-writer-derestricted")  # можно подставить MODEL_NARRATOR_DEEP
+                    if result:
+                        try:
+                            new_data = json.loads(result)
+                            room.world_skeleton = WorldSkeleton(**new_data)
+                        except Exception:
+                            pass  # оставляем старый
+                    await session_manager.broadcast(
+                        room_id,
                         ServerMessage(
                             type="system",
                             author="dm",
-                            content="Сначала создайте персонажа.",
+                            content=f"Обновлённый скелет:\n{room.world_skeleton.json(indent=2, ensure_ascii=False)}"
+                        ),
+                        active_connections,
+                    )
+
+            elif msg.action == "approve_skeleton":
+                room = session_manager.get_room(room_id)
+                if room and room.world_skeleton:
+                    full_world = await generate_full_world(room.world_skeleton)
+                    room.world_state = full_world
+                    room.world_skeleton = None
+                    await session_manager.broadcast(
+                        room_id,
+                        ServerMessage(
+                            type="system",
+                            author="dm",
+                            content=f"Мир создан!\n{full_world.json(indent=2, ensure_ascii=False)}"
                         ),
                         active_connections,
                     )
@@ -211,11 +252,7 @@ async def game_websocket(websocket: WebSocket, room_id: str):
             else:
                 await session_manager.send_to_player(
                     nickname,
-                    ServerMessage(
-                        type="system",
-                        author="dm",
-                        content=f"Неизвестное действие: {msg.action}",
-                    ),
+                    ServerMessage(type="system", author="dm", content=f"Неизвестное действие: {msg.action}"),
                     active_connections,
                 )
 
@@ -233,7 +270,7 @@ async def game_websocket(websocket: WebSocket, room_id: str):
                     ServerMessage(
                         type="system",
                         author="dm",
-                        content=f"{nickname} покидает игру.",
+                        content=f"{nickname} покидает игру."
                     ),
                     active_connections,
                 )

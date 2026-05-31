@@ -20,7 +20,7 @@ DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./game.db")
 # ──────────────────────────────────────────────
 # LLM API (nano-gpt.com)
 # ──────────────────────────────────────────────
-LLM_API_KEY: str = os.getenv("LLM_API_KEY", os.getenv("OPENROUTER_API_KEY", ""))
+LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
 LLM_API_URL: str = os.getenv("LLM_API_URL", "https://nano-gpt.com/api/v1/chat/completions")
 
 # Имена моделей для разных слоёв наррации
@@ -32,7 +32,7 @@ MODEL_NARRATOR_THINKING: str = os.getenv("MODEL_NARRATOR_THINKING", "qwen/qwen3.
 MODEL_FALLBACK: str = os.getenv("MODEL_FALLBACK", "meta-llama/llama-3.1-8b-instruct")
 
 # Параметры генерации
-LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "500"))
+LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "1000"))  # увеличен с 500
 LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
 
 # ──────────────────────────────────────────────

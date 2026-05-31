@@ -25,7 +25,11 @@ SYSTEM_PROMPT = (
     "Твоя задача: на основе сухих фактов, предоставленных игровым движком, создать "
     "живое, атмосферное описание сцены. Не добавляй факты, которых нет в полученном JSON. "
     "Не делай выбор за игроков. Не заканчивай сообщение списком вариантов действий. "
-    "Описывай ощущения, звуки, запахи, тишину. Будь точен и лаконичен."
+    "Описывай ощущения, звуки, запахи, тишину. Будь предельно лаконичен: используй короткие "
+    "предложения, избегай длинных описаний и повторов. "
+    "Твой ответ будет принудительно обрезан после 1000 токенов, поэтому строго уложись "
+    "в 800-900 токенов, чтобы гарантированно завершить мысль. "
+    "Никогда не обрывай предложение на середине — лучше закончи раньше, но цельно."
 )
 
 
@@ -53,8 +57,12 @@ def _build_messages(fact: FactJSON) -> List[Dict[str, str]]:
     ]
 
 
-async def _call_api(messages: List[Dict[str, str]], model: str) -> Optional[str]:
-    """Вызывает API и возвращает текст ответа или None при ошибке."""
+async def call_api(messages: List[Dict[str, str]], model: str,
+                   max_tokens: Optional[int] = None) -> Optional[str]:
+    """
+    Вызывает API и возвращает текст ответа или None при ошибке.
+    max_tokens можно переопределить (например, для генерации мира).
+    """
     if not LLM_API_KEY:
         raise RuntimeError("LLM_API_KEY не задан. Добавьте ключ в переменные окружения.")
 
@@ -65,7 +73,7 @@ async def _call_api(messages: List[Dict[str, str]], model: str) -> Optional[str]
     payload = {
         "model": model,
         "messages": messages,
-        "max_tokens": LLM_MAX_TOKENS,
+        "max_tokens": max_tokens if max_tokens is not None else LLM_MAX_TOKENS,
         "temperature": LLM_TEMPERATURE,
     }
 
@@ -74,7 +82,6 @@ async def _call_api(messages: List[Dict[str, str]], model: str) -> Optional[str]
             response = await client.post(LLM_API_URL, headers=headers, json=payload)
             response.raise_for_status()
             data = response.json()
-            # Извлекаем ответ в формате OpenAI Chat Completions
             choice = data.get("choices", [{}])[0]
             message = choice.get("message", {})
             content = message.get("content", "")
@@ -95,25 +102,20 @@ async def narrate(fact: FactJSON, force_model: Optional[str] = None) -> str:
     model = _select_model(fact.scene_type, force_model)
     messages = _build_messages(fact)
 
-    # Попытка с основной моделью
-    result = await _call_api(messages, model)
+    result = await call_api(messages, model)
     if result:
         return result
 
     # Fallback
     if model != MODEL_FALLBACK:
         print(f"[LLM] Основная модель '{model}' недоступна, пробую fallback '{MODEL_FALLBACK}'...")
-        result = await _call_api(messages, MODEL_FALLBACK)
+        result = await call_api(messages, MODEL_FALLBACK)
         if result:
             return result
 
-    # Если ничего не сработало — возвращаем сухой текст
     return "(Нарратор временно недоступен. Продолжайте действия.)"
 
 
 async def narrate_system_message(message: str) -> str:
-    """
-    Для простых системных сообщений (игрок зашёл, комната создана) —
-    не дёргаем LLM, просто возвращаем текст как есть.
-    """
+    """Простые системные сообщения без обращения к LLM."""
     return message
