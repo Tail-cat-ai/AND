@@ -2,7 +2,7 @@
 Генератор игрового мира (русский язык, фактологический стиль).
 """
 import json
-from models import WorldSkeleton, WorldState
+from models import WorldSkeleton, WorldState, Faction, Location
 from llm_dispatcher import call_api
 
 def _extract_json(text: str) -> str:
@@ -58,12 +58,11 @@ async def generate_full_world(skeleton: WorldSkeleton) -> WorldState:
 {skeleton.model_dump_json(indent=2, ensure_ascii=False)}"""
 
     messages = [{"role": "user", "content": prompt}]
-    result = await call_api(messages, "gryphe/mythomax-l2-13b", max_tokens=2000)
+    result = await call_api(messages, "gryphe/mythomax-l2-13b", max_tokens=30000)  # увеличен лимит
     if result:
         json_str = _extract_json(result)
         try:
             data = json.loads(json_str)
-            # Парсим factions и locations как списки объектов
             factions = [Faction(**f) for f in data.get("factions", [])]
             locations = [Location(**l) for l in data.get("locations", [])]
             return WorldState(
