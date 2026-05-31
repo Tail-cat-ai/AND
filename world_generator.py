@@ -55,9 +55,8 @@ async def generate_skeleton(concept: str, mood: str = "мрачное фэнте
 
 async def generate_full_world(skeleton: WorldSkeleton) -> WorldState:
     prompt = f"""Создай полное описание мира на основе скелета. Ответь **строго** в JSON, без текста вне скобок.
-
 {{
-  "description": "2-3 абзаца описания",
+  "description": "2-3 абзаца",
   "main_quest": "Главный квест",
   "starting_location": "Стартовая локация",
   "hooks": ["Крючок 1", "Крючок 2", "Крючок 3"],
@@ -83,19 +82,21 @@ async def generate_full_world(skeleton: WorldSkeleton) -> WorldState:
                 atmosphere=data["atmosphere"]
             )
         except Exception as e:
+            # Возвращаем сырой ответ для диагностики
             return WorldState(
                 skeleton=skeleton,
-                description=f"Ошибка JSON: {e}\nОтвет модели:\n{result[:500]}",
+                description=f"Ошибка JSON: {e}\n\nОтвет модели:\n{result}",
                 main_quest="",
                 starting_location="",
                 hooks=[],
                 atmosphere=[]
             )
-    return WorldState(
-        skeleton=skeleton,
-        description="LLM не ответила.",
-        main_quest="",
-        starting_location="",
-        hooks=[],
-        atmosphere=[]
-    )
+    else:
+        return WorldState(
+            skeleton=skeleton,
+            description="call_api вернул None. Проверьте логи сервера.",
+            main_quest="",
+            starting_location="",
+            hooks=[],
+            atmosphere=[]
+        )
